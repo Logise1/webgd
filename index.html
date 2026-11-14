@@ -349,7 +349,7 @@
       return new Uint8Array(await resp.arrayBuffer());
     })();
 
-    const preloadRamPromise = fetch('../generated/initial_ram.bin').then(async (r) => {
+    const preloadRamPromise = fetch('./initial_ram.bin').then(async (r) => {
       if (!r.ok) throw new Error('HTTP ' + r.status + ' al cargar initial_ram.bin');
       return new Uint8Array(await r.arrayBuffer());
     });
