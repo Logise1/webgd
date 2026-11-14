@@ -746,6 +746,8 @@
                       const data = val instanceof Uint8Array ? val : new Uint8Array(val);
                       FS.writeFile(fullPath, data);
                       if (/\.dat$/i.test(rel) && rel.indexOf('/') === -1) {
+                        try { FS.writeFile(rootDir + '/' + rel, data); } catch (_) { }
+                        try { FS.writeFile('/files/' + rel, data); } catch (_) { }
                         try { FS.writeFile('/' + rel, data); } catch (_) { }
                         console.log('[SAVE] Restored ' + rel + ' (' + data.byteLength + ' bytes)');
                       }
@@ -797,6 +799,32 @@
       return out;
     }
 
+    function putDatInIndexedDB(filename, data) {
+      if (typeof indexedDB === 'undefined' || !data || !data.byteLength) return;
+      try {
+        const copy = new Uint8Array(data);
+        const put = (db) => {
+          try {
+            const tx = db.transaction('files', 'readwrite');
+            tx.objectStore('files').put(copy, filename);
+          } catch (_) { }
+        };
+        if (window.__gdSaveDB) {
+          put(window.__gdSaveDB);
+        } else {
+          const req = indexedDB.open('gd_local_fs', 1);
+          req.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains('files')) db.createObjectStore('files');
+          };
+          req.onsuccess = (e) => {
+            window.__gdSaveDB = e.target.result;
+            put(window.__gdSaveDB);
+          };
+        }
+      } catch (_) { }
+    }
+
     function writeDatToVfsAndStorage(FS, filename, data) {
       const rootDir = '/data/data/com.robtopx.geometryjump';
       const baseDir = '/data/data/com.robtopx.geometryjump/files';
@@ -810,6 +838,7 @@
       if (typeof localStorage !== 'undefined' && data.byteLength < 3500000) {
         try { localStorage.setItem('gd_vfs_' + filename, bytesToBase64(data)); } catch (_) { }
       }
+      putDatInIndexedDB(filename, data);
     }
 
     function readDatBytesForCloud(FS, filename) {
@@ -843,6 +872,13 @@
       if (!sess || !sess.username || !(sess.accountID > 0)) return;
       const srv = String(window.GD_SERVER_URL || '').replace(/\/+$/, '');
       if (!srv) return;
+      const hasLocal = !!(readDatBytesForCloud(FS, 'CCGameManager.dat') || readDatBytesForCloud(FS, 'CCLocalLevels.dat'));
+      const localTs = typeof localStorage !== 'undefined' ? Number(localStorage.getItem('gd_local_save_ts') || '0') : 0;
+      const cloudTs = typeof localStorage !== 'undefined' ? Number(localStorage.getItem('gd_cloud_sync_ts') || '0') : 0;
+      if (hasLocal && localTs > cloudTs) {
+        console.log('[CLOUD-LOAD] Conservando guardado local mas reciente que la nube');
+        return;
+      }
       setBootProgress(80, 'Cargando guardado de la nube...');
       try {
         const body = new URLSearchParams({
@@ -884,6 +920,13 @@
         if (parts[1] && parts[1].length >= 20) {
           llBytes = asciiToXor11Bytes(parts[1]);
           writeDatToVfsAndStorage(FS, 'CCLocalLevels.dat', llBytes);
+        }
+        if (typeof localStorage !== 'undefined') {
+          try {
+            const now = String(Date.now());
+            localStorage.setItem('gd_cloud_sync_ts', now);
+            localStorage.setItem('gd_local_save_ts', now);
+          } catch (_) { }
         }
         console.log('[CLOUD-LOAD] Sincronizado desde GDPS (CCGameManager: ' +
           (gmBytes ? gmBytes.byteLength : 0) + ' B, CCLocalLevels: ' +
@@ -930,6 +973,9 @@
         if (tid) clearTimeout(tid);
         const txt = (await resp.text()).trim();
         if (resp.ok && txt === '1') {
+          if (typeof localStorage !== 'undefined') {
+            try { localStorage.setItem('gd_cloud_sync_ts', String(Date.now())); } catch (_) { }
+          }
           console.log('[CLOUD-SAVE] Guardado en GDPS OK (' + saveData.length + ' chars)');
         } else {
           console.warn('[CLOUD-SAVE] Respuesta GDPS: HTTP ' + resp.status + ' -> ' + txt.slice(0, 80));
@@ -994,6 +1040,11 @@
             setInterval(() => {
               backupToGdps(Module.FS, sess);
             }, 120000);
+            const localTs = typeof localStorage !== 'undefined' ? Number(localStorage.getItem('gd_local_save_ts') || '0') : 0;
+            const cloudTs = typeof localStorage !== 'undefined' ? Number(localStorage.getItem('gd_cloud_sync_ts') || '0') : 0;
+            if (localTs > cloudTs) {
+              setTimeout(() => backupToGdps(Module.FS, sess), 5000);
+            }
           }
           if (!ok) {
             setBootProgress(100, 'Error al iniciar (revisa la consola)');
