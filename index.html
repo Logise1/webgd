@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#000000" />
+  <title>Geometry Dash</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      height: 100dvh;
+      overflow: hidden;
+      overscroll-behavior: none;
+      background: #000;
+      color: #e6edf3;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: none;
+    }
+
+    #stage {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+      touch-action: none;
+    }
+
+    canvas {
+      width: min(100vw, calc(100dvh * 16 / 9));
+      height: min(100dvh, calc(100vw * 9 / 16));
+      background: #000;
+      display: block;
+      touch-action: none;
+      -webkit-touch-callout: none;
+      cursor: pointer;
+    }
+
+    .hud-pill {
+      position: fixed;
+      top: max(10px, env(safe-area-inset-top));
+      right: max(10px, env(safe-area-inset-right));
+      z-index: 500;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: rgba(13, 18, 28, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      font-size: 12px;
+      color: #b7c4d6;
+      opacity: 0.35;
+      transition: opacity 0.2s ease;
+    }
+
+    @media (pointer: coarse) {
+      .hud-pill { opacity: 0.72; }
+    }
+
+    .hud-pill:hover, .hud-pill:focus-within { opacity: 1; }
+    .hud-pill strong { color: #58d68d; font-weight: 700; }
+
+    .hud-btn {
+      background: rgba(255, 255, 255, 0.08);
+      color: #e6edf3;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 999px;
+      padding: 3px 9px;
+      font-size: 11.5px;
+      cursor: pointer;
+      line-height: 1.3;
+    }
+
+    .hud-btn:hover {
+      background: rgba(88, 214, 141, 0.2);
+      border-color: #58d68d;
+    }
+
+    #logout-btn { display: none; }
+
+    #boot-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 900;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      background: radial-gradient(circle at 50% 40%, #111c30 0%, #070a10 75%);
+      transition: opacity 0.25s ease;
+    }
+
+    #boot-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .boot-logo {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      color: #58d68d;
+    }
+
+    .boot-bar-wrap {
+      width: min(320px, 78vw);
+      height: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .boot-bar {
+      width: 12%;
+      height: 100%;
+      background: linear-gradient(90deg, #2eb86c, #58d68d);
+      border-radius: 999px;
+      transition: width 0.18s ease;
+    }
+
+    #status {
+      font-size: 13px;
+      color: #9fb0c7;
+    }
+
+    #auth-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(7, 10, 16, 0.88);
+      backdrop-filter: blur(8px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      padding: 16px;
+    }
+
+    #auth-overlay.open { display: flex; }
+
+    .auth-card {
+      width: 100%;
+      max-width: 340px;
+      background: #121a29;
+      border: 1px solid #2a3b59;
+      border-radius: 16px;
+      padding: 24px 22px 20px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+    }
+
+    .auth-title {
+      margin: 0 0 16px;
+      font-size: 21px;
+      font-weight: 800;
+      text-align: center;
+      color: #58d68d;
+    }
+
+    .auth-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      margin-bottom: 16px;
+      background: #0b101a;
+      padding: 4px;
+      border-radius: 10px;
+    }
+
+    .auth-tab {
+      background: transparent;
+      border: none;
+      color: #8ea1bd;
+      padding: 8px;
+      border-radius: 7px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .auth-tab.active {
+      background: #22324d;
+      color: #fff;
+    }
+
+    .auth-field { margin-bottom: 10px; }
+
+    .auth-field input {
+      width: 100%;
+      padding: 11px 12px;
+      border-radius: 10px;
+      border: 1px solid #2a3a57;
+      background: #0b1019;
+      color: #fff;
+      font-size: 14px;
+      outline: none;
+    }
+
+    .auth-field input:focus { border-color: #58d68d; }
+    .auth-field input::placeholder { color: #677996; }
+
+    #auth-email-wrap { display: none; }
+
+    #auth-error {
+      display: none;
+      margin: 6px 0 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: rgba(231, 76, 60, 0.16);
+      border: 1px solid rgba(231, 76, 60, 0.45);
+      color: #ff8b80;
+      font-size: 12.5px;
+      line-height: 1.35;
+    }
+
+    #auth-submit {
+      width: 100%;
+      margin-top: 6px;
+      padding: 11px;
+      border: none;
+      border-radius: 10px;
+      background: linear-gradient(180deg, #58d68d 0%, #2eb86c 100%);
+      color: #07140c;
+      font-weight: 800;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    #auth-submit:disabled { opacity: 0.6; cursor: wait; }
+  </style>
+</head>
+
+<body>
+  <div id="stage">
+    <canvas id="canvas" width="1280" height="720" oncontextmenu="event.preventDefault()"></canvas>
+  </div>
+
+  <div class="hud-pill">
+    <span><strong id="fps">--</strong> FPS</span>
+    <button id="fs-btn" class="hud-btn" type="button" title="Pantalla completa">⛶</button>
+    <button id="logout-btn" class="hud-btn" type="button">Salir (<span id="logout-user"></span>)</button>
+  </div>
+
+  <div id="boot-overlay">
+    <div class="boot-logo">Geometry Dash</div>
+    <div class="boot-bar-wrap"><div class="boot-bar" id="boot-bar"></div></div>
+    <span id="status">Cargando...</span>
+  </div>
+
+  <div id="auth-overlay">
+    <form class="auth-card" id="auth-form">
+      <h2 class="auth-title">Geometry Dash</h2>
+      <div class="auth-tabs">
+        <button type="button" class="auth-tab active" data-mode="login">Entrar</button>
+        <button type="button" class="auth-tab" data-mode="register">Crear cuenta</button>
+      </div>
+      <div class="auth-field">
+        <input id="auth-user" type="text" placeholder="Usuario" autocomplete="username" required />
+      </div>
+      <div class="auth-field">
+        <input id="auth-pass" type="password" placeholder="Contraseña" autocomplete="current-password" required />
+      </div>
+      <div class="auth-field" id="auth-email-wrap">
+        <input id="auth-email" type="email" placeholder="Correo (opcional)" autocomplete="email" />
+      </div>
+      <div id="auth-error"></div>
+      <button id="auth-submit" type="submit">Entrar</button>
+    </form>
+  </div>
+
+  <script>
+    // Configuracion de servidor (GMDprivateServer) y limite de FPS (0 = requestAnimationFrame nativo)
+    window.GD_SERVER_URL = window.GD_SERVER_URL || 'https://gdps.arielcapdevila.com';
+    window.GD_FPS_CAP = window.GD_FPS_CAP || 0;
+
+    const canvas = document.getElementById('canvas');
+    const stageEl = document.getElementById('stage');
+    const statusEl = document.getElementById('status');
+    const bootOverlay = document.getElementById('boot-overlay');
+    const bootBar = document.getElementById('boot-bar');
+    const fpsEl = document.getElementById('fps');
+    const fsBtn = document.getElementById('fs-btn');
+    const logoutBtn = document.getElementById('logout-btn');
+    const logoutUserEl = document.getElementById('logout-user');
+
+    function setBootProgress(pct, msg) {
+      if (bootBar) bootBar.style.width = Math.max(5, Math.min(100, pct)) + '%';
+      if (msg && statusEl) statusEl.textContent = msg;
+    }
+
+    async function toggleFullscreen() {
+      try {
+        const fsEl = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
+        if (!fsEl) {
+          const target = stageEl || document.documentElement;
+          const req = target.requestFullscreen || target.webkitRequestFullscreen || target.msRequestFullscreen ||
+                      document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen;
+          if (req) {
+            await req.call(target, { navigationUI: 'hide' }).catch(() => req.call(target));
+          }
+          if (screen.orientation && screen.orientation.lock) {
+            screen.orientation.lock('landscape').catch(() => { });
+          }
+        } else {
+          const ex = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
+          if (ex) await ex.call(document);
+          if (screen.orientation && screen.orientation.unlock) {
+            try { screen.orientation.unlock(); } catch (_) { }
+          }
+        }
+      } catch (_) { }
+    }
+
+    fsBtn.addEventListener('click', toggleFullscreen);
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    const preloadAssetsPromise = (async () => {
+      const assetsUrl = 'https://gdps.arielcapdevila.com/assets.pack';
+      try {
+        if (typeof caches !== 'undefined') {
+          const cache = await caches.open('gd-assets-v1');
+          let resp = await cache.match(assetsUrl);
+          if (!resp) {
+            const netResp = await fetch(assetsUrl);
+            if (netResp.ok) {
+              try { await cache.put(assetsUrl, netResp.clone()); } catch (_) { }
+              resp = netResp;
+            }
+          }
+          if (resp && resp.ok) return new Uint8Array(await resp.arrayBuffer());
+        }
+      } catch (_) { }
+      const resp = await fetch(assetsUrl);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status + ' al cargar assets.pack');
+      return new Uint8Array(await resp.arrayBuffer());
+    })();
+
+    const preloadRamPromise = fetch('../generated/initial_ram.bin').then(async (r) => {
+      if (!r.ok) throw new Error('HTTP ' + r.status + ' al cargar initial_ram.bin');
+      return new Uint8Array(await r.arrayBuffer());
+    });
+
+    logoutBtn.addEventListener('click', () => {
+      try { localStorage.removeItem('gdps_session'); } catch (_) { }
+      location.reload();
+    });
+
+    function getOrCreateUdid() {
+      try {
+        let udid = localStorage.getItem('gdps_udid');
+        if (udid) return udid;
+        udid = (typeof crypto !== 'undefined' && crypto.randomUUID)
+          ? crypto.randomUUID()
+          : ('gd-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10));
+        localStorage.setItem('gdps_udid', udid);
+        return udid;
+      } catch (_) {
+        return 'gd-web-udid-0001';
+      }
+    }
+
+    async function computeGjp2(password) {
+      const data = new TextEncoder().encode(password + 'mI29fmAnxgTs');
+      const hashBuf = await crypto.subtle.digest('SHA-1', data);
+      const bytes = new Uint8Array(hashBuf);
+      let hex = '';
+      for (let i = 0; i < bytes.length; i++) {
+        hex += bytes[i].toString(16).padStart(2, '0');
+      }
+      return hex;
+    }
+
+    function getSavedSession() {
+      try {
+        const raw = localStorage.getItem('gdps_session');
+        if (!raw) return null;
+        const s = JSON.parse(raw);
+        if (s && s.username && s.gjp2 && Number(s.accountID) > 0 && Number(s.userID) > 0) {
+          return s;
+        }
+      } catch (_) { }
+      return null;
+    }
+
+    function showLoggedInHud(sess) {
+      logoutUserEl.textContent = sess.username;
+      logoutBtn.style.display = 'inline-block';
+      window.__gdSession = sess;
+    }
+
+    async function ensureAuthenticated() {
+      const existing = getSavedSession();
+      if (existing) {
+        showLoggedInHud(existing);
+        return existing;
+      }
+
+      const srv = String(window.GD_SERVER_URL || 'https://gdps.arielcapdevila.com').replace(/\/+$/, '');
+      const overlay = document.getElementById('auth-overlay');
+      const form = document.getElementById('auth-form');
+      const userIn = document.getElementById('auth-user');
+      const passIn = document.getElementById('auth-pass');
+      const emailWrap = document.getElementById('auth-email-wrap');
+      const emailIn = document.getElementById('auth-email');
+      const errEl = document.getElementById('auth-error');
+      const submitBtn = document.getElementById('auth-submit');
+      const tabs = overlay.querySelectorAll('.auth-tab');
+
+      let mode = 'login';
+      tabs.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          mode = btn.dataset.mode;
+          tabs.forEach((t) => t.classList.toggle('active', t === btn));
+          emailWrap.style.display = (mode === 'register') ? 'block' : 'none';
+          submitBtn.textContent = (mode === 'register') ? 'Crear cuenta' : 'Entrar';
+          errEl.style.display = 'none';
+        });
+      });
+
+      const showError = (msg) => {
+        errEl.textContent = msg;
+        errEl.style.display = 'block';
+      };
+
+      overlay.classList.add('open');
+      setTimeout(() => userIn.focus(), 50);
+      setBootProgress(15, 'Inicia sesión para jugar');
+
+      return await new Promise((resolve) => {
+        form.addEventListener('submit', async (ev) => {
+          ev.preventDefault();
+          errEl.style.display = 'none';
+          const username = userIn.value.trim();
+          const password = passIn.value;
+          if (!username || !password) {
+            showError('Introduce tu usuario y contraseña.');
+            return;
+          }
+
+          submitBtn.disabled = true;
+          try {
+            if (mode === 'register') {
+              const email = emailIn.value.trim() || (username + '@gdps.local');
+              const regBody = new URLSearchParams({
+                userName: username,
+                password: password,
+                email: email,
+                secret: 'Wmfv3899gc9'
+              });
+              const regResp = await fetch(srv + '/accounts/registerGJAccount.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: regBody.toString()
+              });
+              const regTxt = (await regResp.text()).trim();
+              if (regTxt !== '1') {
+                const regErrors = {
+                  '-2': 'Ese nombre de usuario ya existe.',
+                  '-3': 'Ese correo electrónico ya está en uso.',
+                  '-4': 'El nombre de usuario no es válido.',
+                  '-5': 'La contraseña no es válida.',
+                  '-6': 'El correo electrónico no es válido.',
+                  '-9': 'El nombre de usuario es demasiado corto.'
+                };
+                showError(regErrors[regTxt] || ('Error al registrarse (código ' + regTxt + ').'));
+                submitBtn.disabled = false;
+                return;
+              }
+            }
+
+            const gjp2 = await computeGjp2(password);
+            const udid = getOrCreateUdid();
+            const loginBody = new URLSearchParams({
+              udid: udid,
+              userName: username,
+              password: password,
+              gjp2: gjp2,
+              secret: 'Wmfv3899gc9'
+            });
+            const loginResp = await fetch(srv + '/accounts/loginGJAccount.php', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: loginBody.toString()
+            });
+            const loginTxt = (await loginResp.text()).trim();
+            const parts = loginTxt.split(',');
+            const accountID = parts.length >= 2 ? parseInt(parts[0], 10) : 0;
+            const userID = parts.length >= 2 ? parseInt(parts[1], 10) : 0;
+            if (!(accountID > 0 && userID > 0)) {
+              const loginErrors = {
+                '-1': 'Usuario o contraseña incorrectos.',
+                '-11': 'Usuario o contraseña incorrectos.',
+                '-12': 'La cuenta está deshabilitada.',
+                '-13': 'La cuenta está vinculada a otro dispositivo.'
+              };
+              showError(loginErrors[loginTxt] || ('Error al iniciar sesión (respuesta: ' + loginTxt + ').'));
+              submitBtn.disabled = false;
+              return;
+            }
+
+            const sess = { username, password, gjp2, accountID, userID };
+            try { localStorage.setItem('gdps_session', JSON.stringify(sess)); } catch (_) { }
+            overlay.classList.remove('open');
+            showLoggedInHud(sess);
+            resolve(sess);
+          } catch (e) {
+            showError('No se pudo conectar con el servidor GDPS: ' + (e && e.message ? e.message : e));
+            submitBtn.disabled = false;
+          }
+        });
+      });
+    }
+
+    function ensureDir(fs, dirPath) {
+      const parts = dirPath.split('/').filter(Boolean);
+      let cur = '';
+      for (const p of parts) {
+        cur += '/' + p;
+        try { fs.mkdir(cur); } catch (_) { }
+      }
+    }
+
+    async function loadAssetsIntoVFS(fs) {
+      setBootProgress(35, 'Descargando recursos...');
+      const buf = await preloadAssetsPromise;
+
+      setBootProgress(60, 'Montando recursos...');
+      ensureDir(fs, '/assets');
+      const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+      const decoder = new TextDecoder();
+      const count = view.getUint32(0, true);
+      let pos = 4;
+      const createdDirs = new Set(['/assets']);
+
+      for (let i = 0; i < count; i++) {
+        const pathLen = view.getUint16(pos, true); pos += 2;
+        const rel = decoder.decode(buf.subarray(pos, pos + pathLen)); pos += pathLen;
+        const dataLen = view.getUint32(pos, true); pos += 4;
+        const data = buf.subarray(pos, pos + dataLen); pos += dataLen;
+
+        const fullPath = '/assets/' + rel;
+        const slash = fullPath.lastIndexOf('/');
+        if (slash > 7) {
+          const dir = fullPath.slice(0, slash);
+          if (!createdDirs.has(dir)) {
+            ensureDir(fs, dir);
+            createdDirs.add(dir);
+          }
+        }
+        fs.writeFile(fullPath, data);
+      }
+      setBootProgress(78, `Recursos listos (${count} archivos)`);
+    }
+
+    function canvasCoords(clientX, clientY) {
+      const r = canvas.getBoundingClientRect();
+      return [
+        (clientX - r.left) * (1280 / r.width),
+        (clientY - r.top) * (720 / r.height)
+      ];
+    }
+
+    function bindInput(mod) {
+      canvas.style.touchAction = 'none';
+      const activePointers = new Set();
+
+      canvas.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        activePointers.add(e.pointerId);
+        if (window.__gdAudioResume) window.__gdAudioResume();
+        try { canvas.setPointerCapture(e.pointerId); } catch (_) { }
+        const [x, y] = canvasCoords(e.clientX, e.clientY);
+        mod._gd_touch(0, e.pointerId, x, y);
+      });
+      canvas.addEventListener('pointermove', (e) => {
+        const [x, y] = canvasCoords(e.clientX, e.clientY);
+        if (mod._gd_mouse_move) mod._gd_mouse_move(x, y);
+        if (!activePointers.has(e.pointerId)) return;
+        e.preventDefault();
+        mod._gd_touch(1, e.pointerId, x, y);
+      });
+      canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const [mx, my] = canvasCoords(e.clientX, e.clientY);
+        if (mod._gd_scroll) {
+          const scale = (e.deltaMode === 1) ? 1.0 : (e.deltaMode === 2 ? 10.0 : 0.01);
+          mod._gd_scroll(mx, my, e.deltaX * scale, e.deltaY * scale);
+        }
+        if (activePointers.size === 0 && mod._gd_touch) {
+          const pxMode = (e.deltaMode === 1) ? 32 : (e.deltaMode === 2 ? 240 : 1);
+          const rawY = e.deltaY * pxMode;
+          const rawX = e.deltaX * pxMode;
+          const dy = rawY === 0 ? 0 : Math.sign(rawY) * Math.max(28, Math.min(140, Math.abs(rawY) * 0.65));
+          const dx = rawX === 0 ? 0 : Math.sign(rawX) * Math.max(28, Math.min(140, Math.abs(rawX) * 0.65));
+          const tx = Math.max(10, Math.min(1270, mx - dx));
+          const ty = Math.max(10, Math.min(710, my - dy));
+          mod._gd_touch(0, 999, mx, my);
+          mod._gd_touch(1, 999, (mx + tx) * 0.5, (my + ty) * 0.5);
+          mod._gd_touch(1, 999, tx, ty);
+          mod._gd_touch(2, 999, tx, ty);
+        }
+      }, { passive: false });
+      canvas.addEventListener('pointerup', (e) => {
+        if (!activePointers.has(e.pointerId)) return;
+        e.preventDefault();
+        activePointers.delete(e.pointerId);
+        const [x, y] = canvasCoords(e.clientX, e.clientY);
+        mod._gd_touch(2, e.pointerId, x, y);
+      });
+      canvas.addEventListener('pointercancel', (e) => {
+        if (!activePointers.has(e.pointerId)) return;
+        e.preventDefault();
+        activePointers.delete(e.pointerId);
+        const [x, y] = canvasCoords(e.clientX, e.clientY);
+        mod._gd_touch(3, e.pointerId, x, y);
+      });
+
+      const textEncoder = new TextEncoder();
+      function eventToVK(e) {
+        if (e.code === 'NumpadEnter') return 13;
+        if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') return 16;
+        if (e.code === 'ControlLeft' || e.code === 'ControlRight') return 17;
+        if (e.code === 'AltLeft' || e.code === 'AltRight') return 18;
+        if (e.code === 'MetaLeft') return 91;
+        if (e.code === 'MetaRight') return 92;
+        if (e.code === 'Semicolon') return 186;
+        if (e.code === 'Equal') return 187;
+        if (e.code === 'Comma') return 188;
+        if (e.code === 'Minus') return 189;
+        if (e.code === 'Period') return 190;
+        if (e.code === 'Slash') return 191;
+        if (e.code === 'Backquote') return 192;
+        if (e.code === 'BracketLeft') return 219;
+        if (e.code === 'Backslash') return 220;
+        if (e.code === 'BracketRight') return 221;
+        if (e.code === 'Quote') return 222;
+        return e.keyCode || e.which || 0;
+      }
+      function eventMods(e) {
+        return (e.shiftKey ? 1 : 0) | (e.ctrlKey ? 2 : 0) | (e.altKey ? 4 : 0) | (e.metaKey ? 8 : 0);
+      }
+
+      window.addEventListener('keydown', (e) => {
+        if (window.__gdAudioResume) window.__gdAudioResume();
+        if (e.code !== 'F12' && e.code !== 'F11' && e.code !== 'F5' && !(e.ctrlKey && e.shiftKey && e.code === 'KeyI')) {
+          e.preventDefault();
+        }
+        const vk = eventToVK(e);
+        const mods = eventMods(e);
+        if (vk && mod._gd_key_event) {
+          mod._gd_key_event(vk, 1, e.repeat ? 1 : 0, mods);
+        }
+        if (e.code === 'Backspace' && mod._gd_text_backspace) {
+          mod._gd_text_backspace();
+        } else if (e.key && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && mod._gd_text_input) {
+          const bytes = textEncoder.encode(e.key);
+          if (bytes.length >= 1 && bytes.length <= 4) {
+            mod._gd_text_input(bytes[0] || 0, bytes[1] || 0, bytes[2] || 0, bytes[3] || 0, bytes.length);
+          }
+        }
+      });
+      window.addEventListener('keyup', (e) => {
+        if (e.code !== 'F12' && e.code !== 'F5' && !(e.ctrlKey && e.shiftKey && e.code === 'KeyI')) {
+          e.preventDefault();
+        }
+        const vk = eventToVK(e);
+        const mods = eventMods(e);
+        if (vk && mod._gd_key_event) {
+          mod._gd_key_event(vk, 0, 0, mods);
+        }
+      });
+      window.addEventListener('blur', () => {
+        if (mod._gd_key_event) {
+          mod._gd_key_event(0, 0, 0, 0);
+        }
+      });
+    }
+
+    async function restoreLocalSavesIntoVFS(FS) {
+      const rootDir = '/data/data/com.robtopx.geometryjump';
+      const baseDir = '/data/data/com.robtopx.geometryjump/files';
+      try { FS.mkdirTree(rootDir); } catch (_) { }
+      try { FS.mkdirTree(baseDir); } catch (_) { }
+      try { FS.mkdirTree('/files'); } catch (_) { }
+      if (typeof localStorage !== 'undefined') {
+        const datFiles = ['CCGameManager.dat', 'CCGameManager2.dat', 'CCLocalLevels.dat', 'CCLocalLevels2.dat'];
+        for (const f of datFiles) {
+          try {
+            const b64 = localStorage.getItem('gd_vfs_' + f) || localStorage.getItem('gd_save_' + f);
+            if (b64) {
+              const bin = atob(b64);
+              const arr = new Uint8Array(bin.length);
+              for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i) & 0xff;
+              try { FS.writeFile(rootDir + '/' + f, arr); } catch (_) { }
+              FS.writeFile(baseDir + '/' + f, arr);
+              try { FS.writeFile('/files/' + f, arr); } catch (_) { }
+              try { FS.writeFile('/' + f, arr); } catch (_) { }
+              console.log('[SAVE] Restored ' + f + ' (' + arr.byteLength + ' bytes)');
+            }
+          } catch (_) { }
+        }
+      }
+      if (typeof indexedDB === 'undefined') return;
+      await new Promise((resolve) => {
+        let done = false;
+        const finish = () => { if (!done) { done = true; resolve(); } };
+        setTimeout(finish, 3000);
+        try {
+          const req = indexedDB.open('gd_local_fs', 1);
+          req.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains('files')) db.createObjectStore('files');
+          };
+          req.onsuccess = (e) => {
+            try {
+              const db = e.target.result;
+              const tx = db.transaction('files', 'readonly');
+              const store = tx.objectStore('files');
+              const cursorReq = store.openCursor();
+              cursorReq.onsuccess = (ev) => {
+                const cursor = ev.target.result;
+                if (cursor) {
+                  try {
+                    const rel = String(cursor.key);
+                    const val = cursor.value;
+                    if (rel && val && val.byteLength > 0) {
+                      const fullPath = baseDir + '/' + rel;
+                      const slash = fullPath.lastIndexOf('/');
+                      if (slash > 0) FS.mkdirTree(fullPath.substring(0, slash));
+                      const data = val instanceof Uint8Array ? val : new Uint8Array(val);
+                      FS.writeFile(fullPath, data);
+                      if (/\.dat$/i.test(rel) && rel.indexOf('/') === -1) {
+                        try { FS.writeFile('/' + rel, data); } catch (_) { }
+                        console.log('[SAVE] Restored ' + rel + ' (' + data.byteLength + ' bytes)');
+                      }
+                    }
+                  } catch (_) { }
+                  cursor.continue();
+                } else {
+                  finish();
+                }
+              };
+              cursorReq.onerror = finish;
+            } catch (_) { finish(); }
+          };
+          req.onerror = finish;
+        } catch (_) { finish(); }
+      });
+    }
+
+    function bytesToBase64(bytes) {
+      const chunk = 0x8000;
+      const parts = [];
+      for (let i = 0; i < bytes.length; i += chunk) {
+        parts.push(String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + chunk, bytes.length))));
+      }
+      return btoa(parts.join(''));
+    }
+
+    function xor11BytesToAscii(bytes) {
+      if (!bytes || !bytes.length) return '';
+      const needXor = !(bytes[0] === 0x48 && bytes[1] === 0x34); // 'H4'
+      const chunk = 0x8000;
+      const parts = [];
+      for (let i = 0; i < bytes.length; i += chunk) {
+        const end = Math.min(i + chunk, bytes.length);
+        const arr = new Array(end - i);
+        for (let j = i; j < end; j++) {
+          arr[j - i] = String.fromCharCode(needXor ? (bytes[j] ^ 11) : bytes[j]);
+        }
+        parts.push(arr.join(''));
+      }
+      return parts.join('');
+    }
+
+    function asciiToXor11Bytes(str) {
+      const out = new Uint8Array(str.length);
+      for (let i = 0; i < str.length; i++) {
+        out[i] = (str.charCodeAt(i) & 0xff) ^ 11;
+      }
+      return out;
+    }
+
+    function writeDatToVfsAndStorage(FS, filename, data) {
+      const rootDir = '/data/data/com.robtopx.geometryjump';
+      const baseDir = '/data/data/com.robtopx.geometryjump/files';
+      try { FS.mkdirTree(rootDir); } catch (_) { }
+      try { FS.mkdirTree(baseDir); } catch (_) { }
+      try { FS.mkdirTree('/files'); } catch (_) { }
+      try { FS.writeFile(rootDir + '/' + filename, data); } catch (_) { }
+      try { FS.writeFile(baseDir + '/' + filename, data); } catch (_) { }
+      try { FS.writeFile('/files/' + filename, data); } catch (_) { }
+      try { FS.writeFile('/' + filename, data); } catch (_) { }
+      if (typeof localStorage !== 'undefined' && data.byteLength < 3500000) {
+        try { localStorage.setItem('gd_vfs_' + filename, bytesToBase64(data)); } catch (_) { }
+      }
+    }
+
+    function readDatBytesForCloud(FS, filename) {
+      const paths = [
+        '/data/data/com.robtopx.geometryjump/' + filename,
+        '/data/data/com.robtopx.geometryjump/files/' + filename,
+        '/files/' + filename,
+        '/' + filename
+      ];
+      for (const p of paths) {
+        try {
+          const data = FS.readFile(p);
+          if (data && data.byteLength > 0) return data;
+        } catch (_) { }
+      }
+      if (typeof localStorage !== 'undefined') {
+        try {
+          const b64 = localStorage.getItem('gd_vfs_' + filename) || localStorage.getItem('gd_save_' + filename);
+          if (b64) {
+            const bin = atob(b64);
+            const arr = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i) & 0xff;
+            return arr;
+          }
+        } catch (_) { }
+      }
+      return null;
+    }
+
+    async function syncFromGdpsBeforeBoot(FS, sess) {
+      if (!sess || !sess.username || !(sess.accountID > 0)) return;
+      const srv = String(window.GD_SERVER_URL || '').replace(/\/+$/, '');
+      if (!srv) return;
+      setBootProgress(80, 'Cargando guardado de la nube...');
+      try {
+        const body = new URLSearchParams({
+          userName: sess.username,
+          accountID: String(sess.accountID),
+          gjp2: sess.gjp2 || '',
+          secret: 'Wmfv3899gc9',
+          gameVersion: '22',
+          binaryVersion: '42',
+          gdw: '0'
+        });
+        if (sess.password) body.set('password', sess.password);
+        const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        const tid = ctrl ? setTimeout(() => ctrl.abort(), 5000) : 0;
+        const resp = await fetch(srv + '/accounts/syncGJAccountNew.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: body.toString(),
+          cache: 'no-store',
+          signal: ctrl ? ctrl.signal : undefined
+        });
+        if (tid) clearTimeout(tid);
+        if (!resp.ok) {
+          console.warn('[CLOUD-LOAD] HTTP ' + resp.status);
+          return;
+        }
+        const txt = (await resp.text()).trim();
+        if (!txt || txt.startsWith('-') || txt.indexOf(';') === -1 || txt.length < 40) {
+          console.log('[CLOUD-LOAD] Sin guardado previo en GDPS (respuesta: ' + txt.slice(0, 40) + ')');
+          return;
+        }
+        const parts = txt.split(';');
+        let gmBytes = null;
+        let llBytes = null;
+        if (parts[0] && parts[0].length >= 20) {
+          gmBytes = asciiToXor11Bytes(parts[0]);
+          writeDatToVfsAndStorage(FS, 'CCGameManager.dat', gmBytes);
+        }
+        if (parts[1] && parts[1].length >= 20) {
+          llBytes = asciiToXor11Bytes(parts[1]);
+          writeDatToVfsAndStorage(FS, 'CCLocalLevels.dat', llBytes);
+        }
+        console.log('[CLOUD-LOAD] Sincronizado desde GDPS (CCGameManager: ' +
+          (gmBytes ? gmBytes.byteLength : 0) + ' B, CCLocalLevels: ' +
+          (llBytes ? llBytes.byteLength : 0) + ' B)');
+      } catch (e) {
+        console.warn('[CLOUD-LOAD] Error de red:', e && e.message ? e.message : e);
+      }
+    }
+
+    let __cloudBackupInFlight = false;
+    async function backupToGdps(FS, sess) {
+      if (__cloudBackupInFlight) return;
+      if (!sess || !sess.username || !(sess.accountID > 0)) return;
+      const srv = String(window.GD_SERVER_URL || '').replace(/\/+$/, '');
+      if (!srv) return;
+      __cloudBackupInFlight = true;
+      try {
+        try { if (typeof Module._gd_save_now === 'function') Module._gd_save_now(); } catch (_) { }
+        const gmData = readDatBytesForCloud(FS, 'CCGameManager.dat');
+        const llData = readDatBytesForCloud(FS, 'CCLocalLevels.dat');
+        if (!gmData && !llData) return;
+        const gmStr = gmData ? xor11BytesToAscii(gmData) : '';
+        const llStr = llData ? xor11BytesToAscii(llData) : '';
+        const saveData = gmStr + ';' + llStr;
+        const body = new URLSearchParams({
+          userName: sess.username,
+          accountID: String(sess.accountID),
+          gjp2: sess.gjp2 || '',
+          saveData: saveData,
+          gameVersion: '22',
+          binaryVersion: '42',
+          gdw: '0',
+          secret: 'Wmfv3899gc9'
+        });
+        if (sess.password) body.set('password', sess.password);
+        const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        const tid = ctrl ? setTimeout(() => ctrl.abort(), 15000) : 0;
+        const resp = await fetch(srv + '/accounts/backupGJAccountNew.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: body.toString(),
+          signal: ctrl ? ctrl.signal : undefined
+        });
+        if (tid) clearTimeout(tid);
+        const txt = (await resp.text()).trim();
+        if (resp.ok && txt === '1') {
+          console.log('[CLOUD-SAVE] Guardado en GDPS OK (' + saveData.length + ' chars)');
+        } else {
+          console.warn('[CLOUD-SAVE] Respuesta GDPS: HTTP ' + resp.status + ' -> ' + txt.slice(0, 80));
+        }
+      } catch (e) {
+        console.warn('[CLOUD-SAVE] Error de red:', e && e.message ? e.message : e);
+      } finally {
+        __cloudBackupInFlight = false;
+      }
+    }
+
+    var Module = {
+      canvas: canvas,
+      print: (txt) => console.log('[WASM]', txt),
+      printErr: (txt) => console.warn('[WASM]', txt),
+      onRuntimeInitialized: async function () {
+        const sess = await ensureAuthenticated();
+        const t0 = performance.now();
+        try {
+          await loadAssetsIntoVFS(Module.FS);
+          await restoreLocalSavesIntoVFS(Module.FS);
+          await syncFromGdpsBeforeBoot(Module.FS, sess);
+
+          if (Module.ccall) {
+            Module.ccall(
+              'gd_set_session',
+              null,
+              ['string', 'string', 'string', 'number', 'number'],
+              [sess.username, sess.password || '', sess.gjp2, sess.accountID, sess.userID]
+            );
+          }
+
+          setBootProgress(85, 'Cargando motor...');
+          const ramBuf = await preloadRamPromise;
+          const ptr = Module._malloc(ramBuf.length);
+          Module.HEAPU8.set(ramBuf, ptr);
+          const loaded = Module._gd_load_ram_from_ptr(ptr, ramBuf.length);
+          Module._free(ptr);
+          if (!loaded) throw new Error('gd_load_ram_from_ptr fallo');
+
+          setBootProgress(95, 'Iniciando Geometry Dash...');
+          const ok = Module._gd_boot_game();
+          if (ok && !window.__gdSaveLifecycleAttached) {
+            window.__gdSaveLifecycleAttached = true;
+            const triggerSave = () => {
+              try { if (typeof Module._gd_save_now === 'function') Module._gd_save_now(); } catch (_) { }
+            };
+            const triggerPause = () => {
+              triggerSave();
+              try {
+                if (typeof Module._gd_on_pause === 'function') Module._gd_on_pause();
+              } catch (_) { }
+            };
+            document.addEventListener('visibilitychange', () => {
+              if (document.visibilityState === 'hidden') {
+                triggerSave();
+                backupToGdps(Module.FS, sess);
+              }
+            });
+            window.addEventListener('pagehide', triggerPause);
+            window.addEventListener('beforeunload', triggerPause);
+            setInterval(() => {
+              backupToGdps(Module.FS, sess);
+            }, 120000);
+          }
+          if (!ok) {
+            setBootProgress(100, 'Error al iniciar (revisa la consola)');
+            return;
+          }
+
+          bindInput(Module);
+          if (window.GD_FPS_CAP > 0 && Module._gd_set_fps_cap) {
+            Module._gd_set_fps_cap(window.GD_FPS_CAP);
+          }
+          setBootProgress(100, 'Listo');
+          if (bootOverlay) bootOverlay.classList.add('hidden');
+
+          let lastFrames = Module._gd_get_frame_count();
+          let lastTime = performance.now();
+          setInterval(() => {
+            if (document.hidden) return;
+            const now = performance.now();
+            const curFrames = Module._gd_get_frame_count();
+            const dt = (now - lastTime) / 1000;
+            if (dt > 0) {
+              fpsEl.textContent = Math.round((curFrames - lastFrames) / dt);
+            }
+            lastFrames = curFrames;
+            lastTime = now;
+          }, 1000);
+        } catch (e) {
+          statusEl.textContent = 'Error: ' + e.message;
+          console.error(e);
+        }
+      }
+    };
+  </script>
+  <script src="./gd.js"></script>
+</body>
+
+</html>
