@@ -873,10 +873,8 @@
       const srv = String(window.GD_SERVER_URL || '').replace(/\/+$/, '');
       if (!srv) return;
       const hasLocal = !!(readDatBytesForCloud(FS, 'CCGameManager.dat') || readDatBytesForCloud(FS, 'CCLocalLevels.dat'));
-      const localTs = typeof localStorage !== 'undefined' ? Number(localStorage.getItem('gd_local_save_ts') || '0') : 0;
-      const cloudTs = typeof localStorage !== 'undefined' ? Number(localStorage.getItem('gd_cloud_sync_ts') || '0') : 0;
-      if (hasLocal && localTs > cloudTs) {
-        console.log('[CLOUD-LOAD] Conservando guardado local mas reciente que la nube');
+      if (hasLocal) {
+        console.log('[CLOUD-LOAD] Guardado local presente; conservando progreso local (usa Account -> Load en el juego si quieres bajar de la nube)');
         return;
       }
       setBootProgress(80, 'Cargando guardado de la nube...');
@@ -937,7 +935,7 @@
     }
 
     let __cloudBackupInFlight = false;
-    async function backupToGdps(FS, sess) {
+    async function backupToGdps(FS, sess, useKeepalive = false) {
       if (__cloudBackupInFlight) return;
       if (!sess || !sess.username || !(sess.accountID > 0)) return;
       const srv = String(window.GD_SERVER_URL || '').replace(/\/+$/, '');
@@ -962,12 +960,14 @@
           secret: 'Wmfv3899gc9'
         });
         if (sess.password) body.set('password', sess.password);
-        const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        const bodyStr = body.toString();
+        const ctrl = (!useKeepalive && typeof AbortController !== 'undefined') ? new AbortController() : null;
         const tid = ctrl ? setTimeout(() => ctrl.abort(), 15000) : 0;
         const resp = await fetch(srv + '/accounts/backupGJAccountNew.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: body.toString(),
+          body: bodyStr,
+          keepalive: !!(useKeepalive && bodyStr.length < 60000),
           signal: ctrl ? ctrl.signal : undefined
         });
         if (tid) clearTimeout(tid);
@@ -1035,14 +1035,17 @@
                 backupToGdps(Module.FS, sess);
               }
             });
-            window.addEventListener('pagehide', triggerPause);
+            window.addEventListener('pagehide', () => {
+              triggerPause();
+              backupToGdps(Module.FS, sess, true);
+            });
             window.addEventListener('beforeunload', triggerPause);
             setInterval(() => {
               backupToGdps(Module.FS, sess);
             }, 120000);
             const localTs = typeof localStorage !== 'undefined' ? Number(localStorage.getItem('gd_local_save_ts') || '0') : 0;
             const cloudTs = typeof localStorage !== 'undefined' ? Number(localStorage.getItem('gd_cloud_sync_ts') || '0') : 0;
-            if (localTs > cloudTs) {
+            if (localTs >= cloudTs) {
               setTimeout(() => backupToGdps(Module.FS, sess), 5000);
             }
           }
